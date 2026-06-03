@@ -69,16 +69,21 @@
   .sec-title{font-size:15px; font-weight:700}
   .sec-title .why{display:block; font-size:12px; color:var(--muted); font-weight:400; margin-top:2px}
   .sec-count{font-size:12px; color:var(--muted); white-space:nowrap; margin-left:10px}
-  .shot{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:10px; overflow:hidden}
-  .shot.done{border-color:rgba(46,204,113,.4); background:linear-gradient(0deg,rgba(46,204,113,.06),rgba(46,204,113,.06)),var(--card)}
-  .shot-main{display:flex; align-items:flex-start; gap:12px; padding:13px 14px; cursor:pointer}
-  .num{flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px}
-  .box{flex:0 0 auto; width:26px; height:26px; border-radius:8px; border:2px solid var(--line); background:var(--card2); display:flex; align-items:center; justify-content:center; margin-top:1px; transition:.15s}
+  .shot{position:relative; border:1px solid var(--line); border-radius:var(--radius); margin-bottom:10px; overflow:hidden}
+  .shot.done{border-color:rgba(46,204,113,.4)}
+  .shot-del{position:absolute; top:0; right:0; bottom:0; width:96px; border:none; background:#e2483a; color:#fff; font-weight:700; font-size:15px; letter-spacing:.3px; cursor:pointer}
+  .shot-swipe{position:relative; z-index:1; background:var(--card); transition:transform .18s ease; touch-action:pan-y}
+  .shot.done .shot-swipe{background:linear-gradient(0deg,rgba(46,204,113,.06),rgba(46,204,113,.06)),var(--card)}
+  .shot.swiped .shot-swipe{transform:translateX(-96px)}
+  .shot-main{display:flex; align-items:flex-start; gap:12px; padding:13px 14px}
+  .num{flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px; cursor:pointer}
+  .box{flex:0 0 auto; width:26px; height:26px; border-radius:8px; border:2px solid var(--line); background:var(--card2); display:flex; align-items:center; justify-content:center; margin-top:1px; transition:.15s; cursor:pointer}
   .shot.done .box{background:var(--done); border-color:var(--done)}
   .box svg{width:16px; height:16px; opacity:0; transition:.15s}
   .shot.done .box svg{opacity:1}
-  .shot-body{flex:1; min-width:0}
+  .shot-body{flex:1; min-width:0; cursor:pointer}
   .shot-label{font-weight:600; font-size:15px}
+  .editcue{font-size:12px; color:var(--muted); margin-left:6px; opacity:.65}
   .shot.done .shot-label{color:var(--muted); text-decoration:line-through}
   .shot-hint{font-size:13px; color:var(--muted); margin-top:3px}
   .shot-foot{padding:0 14px 12px}
@@ -764,13 +769,20 @@ let _shotNo=0;
 
 function allShots(){ const o=[]; state.sections.forEach(s=>s.shots.forEach(x=>o.push(x))); state.custom.forEach(x=>o.push(x)); return o; }
 
+let _renderedSecs=[];
 function renderList(){
   $("#titleField").value=state.title||"";
   $("#seqNote").innerHTML='<span>↕</span><div><b>Shoot in this order.</b> '+esc(state.seq||"")+'</div>';
-  sectionsEl.innerHTML=""; _shotNo=0;
-  state.sections.forEach(sec=>sectionsEl.appendChild(renderSection(sec)));
+  sectionsEl.innerHTML=""; _shotNo=0; _renderedSecs=[];
+  state.sections.forEach(sec=>{
+    if(!sec.shots.length) return;               // hide a section once it's been emptied
+    const w=renderSection(sec); sectionsEl.appendChild(w);
+    _renderedSecs.push({shots:sec.shots, countEl:w.querySelector(".sec-count")});
+  });
   if(state.custom.length){
-    sectionsEl.appendChild(renderSection({name:customHeading(), why:"", shots:state.custom}));
+    const sec={name:customHeading(), why:"", shots:state.custom};
+    const w=renderSection(sec); sectionsEl.appendChild(w);
+    _renderedSecs.push({shots:state.custom, countEl:w.querySelector(".sec-count")});
   }
   if(!allShots().length){
     const e=document.createElement("div"); e.className="emptystate";
@@ -788,24 +800,62 @@ function renderSection(sec){
   sec.shots.forEach(s=>wrap.appendChild(renderShot(s)));
   return wrap;
 }
+function closeOtherSwipes(except){
+  sectionsEl.querySelectorAll(".shot.swiped").forEach(x=>{ if(x!==except) x.classList.remove("swiped"); });
+}
+function removeShot(shot){
+  for(const sec of state.sections){ const i=sec.shots.indexOf(shot); if(i>=0){ sec.shots.splice(i,1); save(); return; } }
+  const j=state.custom.indexOf(shot); if(j>=0){ state.custom.splice(j,1); save(); }
+}
 function renderShot(s){
   _shotNo++;
   const el=document.createElement("div"); el.className="shot"+(s.done?" done":"");
-  el.innerHTML='<div class="shot-main"><div class="num">'+_shotNo+'</div><div class="box">'+CHECK+'</div>'+
-    '<div class="shot-body"><div class="shot-label">'+esc(s.label)+'</div>'+
-    (s.hint?'<div class="shot-hint">'+esc(s.hint)+'</div>':'')+'</div></div>'+
-    '<div class="shot-foot"><button class="notebtn'+(s.note?' has':'')+'">📝 '+(s.note?'Note added':'Add note')+'</button></div>'+
-    '<div class="note"><textarea placeholder="Reminders, shot notes, or script...">'+esc(s.note||"")+'</textarea></div>';
-  el.querySelector(".shot-main").onclick=()=>{ s.done=!s.done; save(); el.classList.toggle("done",s.done); updateProgress(); refreshCounts(); };
+  el.innerHTML='<button class="shot-del" type="button">Delete</button>'+
+    '<div class="shot-swipe">'+
+      '<div class="shot-main"><div class="num">'+_shotNo+'</div><div class="box">'+CHECK+'</div>'+
+      '<div class="shot-body"><div class="shot-label">'+esc(s.label)+'<span class="editcue">✎</span></div>'+
+      (s.hint?'<div class="shot-hint">'+esc(s.hint)+'</div>':'')+'</div></div>'+
+      '<div class="shot-foot"><button class="notebtn'+(s.note?' has':'')+'">📝 '+(s.note?'Note added':'Add note')+'</button></div>'+
+      '<div class="note"><textarea placeholder="Reminders, shot notes, or script...">'+esc(s.note||"")+'</textarea></div>'+
+    '</div>';
+
+  const swipeEl=el.querySelector(".shot-swipe");
+  const box=el.querySelector(".box"), num=el.querySelector(".num"), body=el.querySelector(".shot-body");
+  const delBtn=el.querySelector(".shot-del");
+
+  function toggleDone(){ s.done=!s.done; save(); el.classList.toggle("done",s.done); updateProgress(); refreshCounts(); }
+  // A tap closes an open swipe instead of acting; otherwise runs fn. _suppress blocks the
+  // click that fires at the end of a swipe gesture.
+  function tap(fn){ return (e)=>{ e.stopPropagation(); if(el._suppress) return; if(el.classList.contains("swiped")){ el.classList.remove("swiped"); return; } fn(); }; }
+  box.onclick=tap(toggleDone);
+  num.onclick=tap(toggleDone);
+  body.onclick=tap(()=>openShotDialog(s));      // tap the name -> change shot type
+  delBtn.onclick=(e)=>{ e.stopPropagation(); removeShot(s); renderList(); };
+
+  // Swipe left to reveal Delete (pointer events => works on iPhone touch and desktop mouse).
+  let startX=0,startY=0,drag=false,decided=false,horiz=false,curTx=0;
+  swipeEl.addEventListener("pointerdown",(e)=>{ if(e.pointerType==="mouse"&&e.button!==0) return; startX=e.clientX; startY=e.clientY; drag=true; decided=false; horiz=false; });
+  swipeEl.addEventListener("pointermove",(e)=>{
+    if(!drag) return;
+    const dx=e.clientX-startX, dy=e.clientY-startY;
+    if(!decided && (Math.abs(dx)>8||Math.abs(dy)>8)){ decided=true; horiz=Math.abs(dx)>Math.abs(dy); if(horiz){ closeOtherSwipes(el); try{ swipeEl.setPointerCapture(e.pointerId); }catch(_){} } }
+    if(decided && horiz){
+      const base=el.classList.contains("swiped")?-96:0;
+      curTx=Math.max(-112,Math.min(0,base+dx));
+      swipeEl.style.transition="none"; swipeEl.style.transform="translateX("+curTx+"px)";
+    }
+  });
+  function endSwipe(){ if(!drag) return; drag=false; swipeEl.style.transition=""; swipeEl.style.transform=""; if(decided&&horiz){ el._suppress=true; setTimeout(()=>{ el._suppress=false; },350); el.classList.toggle("swiped", curTx<=-48); } }
+  swipeEl.addEventListener("pointerup",endSwipe);
+  swipeEl.addEventListener("pointercancel",endSwipe);
+
   const noteBtn=el.querySelector(".notebtn"), noteBox=el.querySelector(".note"), ta=el.querySelector("textarea");
-  noteBtn.onclick=()=>{ noteBox.classList.toggle("open"); if(noteBox.classList.contains("open")) ta.focus(); };
+  noteBtn.onclick=()=>{ if(el.classList.contains("swiped")){ el.classList.remove("swiped"); return; } noteBox.classList.toggle("open"); if(noteBox.classList.contains("open")) ta.focus(); };
   ta.oninput=()=>{ s.note=ta.value; save(); noteBtn.classList.toggle("has",!!s.note); noteBtn.textContent=s.note?"📝 Note added":"📝 Add note"; };
   return el;
 }
 function refreshCounts(){
-  const heads=sectionsEl.querySelectorAll(".section"); let i=0;
-  state.sections.forEach(sec=>{ const c=heads[i]&&heads[i].querySelector(".sec-count"); if(c)c.textContent=sec.shots.filter(s=>s.done).length+"/"+sec.shots.length; i++; });
-  if(state.custom.length){ const c=heads[i]&&heads[i].querySelector(".sec-count"); if(c)c.textContent=state.custom.filter(s=>s.done).length+"/"+state.custom.length; }
+  _renderedSecs.forEach(r=>{ if(r.countEl) r.countEl.textContent=r.shots.filter(s=>s.done).length+"/"+r.shots.length; });
 }
 function updateProgress(){
   const all=allShots(); const done=all.filter(s=>s.done).length;
@@ -853,10 +903,11 @@ $("#backBtn").onclick=()=>askConfirm(
 $("#titleField").oninput=e=>{ state.title=e.target.value; save(); };
 
 const addDlg=$("#addDlg");
-function renderChips(){
+let _editingShot=null;   // null = adding a new shot; otherwise the shot being edited
+function renderChips(selectedLabel){
   const c=$("#typeChips"); c.innerHTML="";
   SHOT_TYPES.forEach(t=>{
-    const chip=document.createElement("div"); chip.className="chip"; chip.textContent=t.label;
+    const chip=document.createElement("div"); chip.className="chip"+(selectedLabel===t.label?" sel":""); chip.textContent=t.label;
     chip.onclick=()=>{
       document.querySelectorAll("#typeChips .chip").forEach(x=>x.classList.remove("sel"));
       chip.classList.add("sel");
@@ -866,13 +917,32 @@ function renderChips(){
     c.appendChild(chip);
   });
 }
-$("#addShotBtn").onclick=()=>{
-  $("#addLabel").value=""; $("#addHint").value="";
-  renderChips();
+function openShotDialog(shot){
+  _editingShot = shot || null;
+  const head=addDlg.querySelector(".dlg-head");
+  if(shot){
+    head.textContent="Change shot";
+    $("#addSave").textContent="Save changes";
+    $("#addLabel").value=shot.label;
+    $("#addHint").value=shot.hint||"";
+    renderChips(shot.label);
+  }else{
+    head.textContent="Add a shot";
+    $("#addSave").textContent="Add shot";
+    $("#addLabel").value=""; $("#addHint").value="";
+    renderChips(null);
+  }
   addDlg.showModal();
-};
+}
+$("#addShotBtn").onclick=()=>openShotDialog(null);
 $("#addCancel").onclick=()=>addDlg.close();
-$("#addSave").onclick=()=>{ const l=$("#addLabel").value.trim(); if(!l){$("#addLabel").focus();return;} state.custom.push(mk({label:l,hint:$("#addHint").value.trim()})); save(); addDlg.close(); renderList(); };
+$("#addSave").onclick=()=>{
+  const l=$("#addLabel").value.trim(); if(!l){ $("#addLabel").focus(); return; }
+  const h=$("#addHint").value.trim();
+  if(_editingShot){ _editingShot.label=l; _editingShot.hint=h; }
+  else { state.custom.push(mk({label:l,hint:h})); }
+  _editingShot=null; save(); addDlg.close(); renderList();
+};
 
 $("#resetBtn").onclick=()=>askConfirm(
   "Start over?",
