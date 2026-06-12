@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<!-- Studio27 Reel Checklist — VERSION 2026-06-12 "filming-camera" (adds front/back camera PiP). Local rollback snapshots live in the /backups folder next to this file. -->
+<!-- Studio27 Reel Checklist — VERSION 2026-06-12b "filming-camera + script reader" (front/back camera PiP; tap a shot while filming to open a full-screen, scrollable script reader). Local rollback snapshots live in the /backups folder next to this file. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
@@ -168,20 +168,34 @@
   #filmVideo{width:100%; height:100%; object-fit:cover; background:#000; display:block}
   #filmCamera.mirror #filmVideo{transform:scaleX(-1)}
 
-  .film-scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  .film-scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain;
     padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 24px)}
   #filmLayer.focus-camera #filmScript .film-scroll{overflow:hidden}   /* thumbnail doesn't scroll */
   .fs-title{font-size:20px; font-weight:800; margin:0 0 6px; color:var(--text)}
   .fs-sub{font-size:12px; color:var(--muted); margin:0 0 16px}
   .fs-sec{font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px; margin:20px 0 8px}
-  .fs-shot{margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--line)}
+  .fs-shot{margin-bottom:12px; padding:8px 8px 12px; border-bottom:1px solid var(--line); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:rgba(204,119,26,.12)}
+  .fs-shot:active{background:var(--card)}
   .fs-shot.done .fs-label{text-decoration:line-through; color:var(--muted)}
   .fs-line{display:flex; gap:10px; align-items:center}
   .fs-n{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center}
-  .fs-label{font-size:17px; font-weight:700; color:var(--text)}
+  .fs-label{font-size:17px; font-weight:700; color:var(--text); flex:1; min-width:0}
+  .fs-chev{flex:0 0 auto; color:var(--muted); font-size:20px; line-height:1}
   .fs-hint{font-size:13px; color:var(--muted); margin:5px 0 0 32px}
   .fs-note{font-size:14px; color:var(--text); opacity:.85; margin:6px 0 0 32px}
-  .fs-script{font-size:19px; line-height:1.5; color:var(--text); margin:9px 0 0; padding:11px 13px; background:var(--card); border-left:3px solid var(--accent); border-radius:8px}
+  .fs-script{font-size:16px; line-height:1.45; color:var(--text); margin:9px 0 0; padding:10px 12px; background:var(--card); border-left:3px solid var(--accent); border-radius:8px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .fs-readcue{font-size:12px; font-weight:700; color:var(--accent); margin:7px 0 0 32px}
+
+  /* Full-screen single-shot script reader (inside the script pane) */
+  .film-reader{position:absolute; inset:0; z-index:3; background:var(--bg); display:flex; flex-direction:column}
+  .film-reader-back{flex:0 0 auto; align-self:flex-start; margin:calc(env(safe-area-inset-top) + 14px) 0 6px 14px; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:20px; padding:9px 15px; font-size:14px; font-weight:700; cursor:pointer}
+  .film-reader-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain; padding:8px 22px calc(env(safe-area-inset-bottom) + 36px)}
+  .fr-kicker{font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px; margin:6px 0 4px}
+  .fr-title{font-size:22px; font-weight:800; color:var(--text); margin:0 0 12px}
+  .fr-hint{font-size:14px; color:var(--muted); margin:0 0 18px}
+  .fr-script{font-size:23px; line-height:1.65; color:var(--text); white-space:pre-wrap}
+  .fr-empty{font-size:16px; color:var(--muted); margin-top:16px}
 
   .film-controls{position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 22px);
     display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; padding:0 16px; z-index:3;
@@ -259,6 +273,10 @@
 <div id="filmLayer" class="hide focus-script" aria-hidden="true">
   <div id="filmScript" class="film-pane">
     <div class="film-scroll" id="filmScriptScroll"></div>
+    <div class="film-reader hide" id="filmReader">
+      <button class="film-reader-back" id="filmReaderBack" type="button">‹ Shot list</button>
+      <div class="film-reader-scroll" id="filmReaderScroll"></div>
+    </div>
   </div>
   <div id="filmCamera" class="film-pane">
     <video id="filmVideo" playsinline muted autoplay></video>
@@ -1430,6 +1448,7 @@ $("#pdfGo").onclick=()=>{ pdfDlg.close(); savePDF(); };
 
 // ============ Filming: picture-in-picture camera over the script/shot list ============
 let filmStream=null, filmFacing="user", filmFocused="script", filmTorchOn=false;
+let _filmShots=[];   // flat, ordered list mirroring the rendered rows (for tap-to-read)
 
 function setFilmFocus(which){
   filmFocused=which;
@@ -1440,21 +1459,30 @@ function setFilmFocus(which){
 function buildFilmScript(){
   const groups=reel.sections.map(s=>({name:s.name,shots:s.shots})).filter(g=>g.shots.length);
   if(reel.custom.length) groups.push({name:customHeading(), shots:reel.custom});
-  let n=0;
+  _filmShots=[]; let n=0;
   let html='<div class="fs-title">'+esc(reel.title||REELS[reel.type].label+" Reel")+'</div>';
   if(reel.seq && !REELS[reel.type].blank) html+='<div class="fs-sub">'+esc(reel.seq)+'</div>';
   groups.forEach(g=>{
     html+='<div class="fs-sec">'+esc(g.name)+'</div>';
-    g.shots.forEach(s=>{ n++;
-      html+='<div class="fs-shot'+(s.done?' done':'')+'"><div class="fs-line"><span class="fs-n">'+n+'</span><span class="fs-label">'+esc(s.label)+'</span></div>'+
+    g.shots.forEach(s=>{ const i=_filmShots.length; _filmShots.push(s); n++;
+      html+='<div class="fs-shot'+(s.done?' done':'')+'" data-i="'+i+'"><div class="fs-line"><span class="fs-n">'+n+'</span><span class="fs-label">'+esc(s.label)+'</span><span class="fs-chev">›</span></div>'+
         (s.hint?'<div class="fs-hint">'+esc(s.hint)+'</div>':'')+
         (s.note?'<div class="fs-note">'+esc(s.note)+'</div>':'')+
-        (s.script?'<div class="fs-script">'+esc(s.script)+'</div>':'')+'</div>';
+        (s.script?'<div class="fs-script">'+esc(s.script)+'</div><div class="fs-readcue">Tap to read full script ›</div>':'')+'</div>';
     });
   });
   if(!n) html+='<div class="fs-sub">No shots yet — add some to read them here while filming.</div>';
   $("#filmScriptScroll").innerHTML=html;
 }
+function openFilmReader(s){
+  let html='<div class="fr-kicker">Script</div><div class="fr-title">'+esc(s.label)+'</div>';
+  if(s.hint) html+='<div class="fr-hint">'+esc(s.hint)+'</div>';
+  if(s.script) html+='<div class="fr-script">'+esc(s.script)+'</div>';
+  else html+='<div class="fr-empty">No script saved for this shot yet. You can add one from the shot list.</div>';
+  const sc=$("#filmReaderScroll"); sc.innerHTML=html; sc.scrollTop=0;
+  $("#filmReader").classList.remove("hide");
+}
+function closeFilmReader(){ $("#filmReader").classList.add("hide"); }
 function applyMirror(){ $("#filmCamera").classList.toggle("mirror", filmFacing==="user"); }
 function showFilmError(msg){ $("#filmErrorMsg").textContent=msg; $("#filmError").classList.remove("hide"); }
 
@@ -1488,6 +1516,7 @@ async function openCamera(){
 async function startFilming(){
   $("#filmError").classList.add("hide");
   buildFilmScript();
+  closeFilmReader();
   setFilmFocus("script");
   $("#filmLayer").classList.remove("hide");
   $("#filmLayer").setAttribute("aria-hidden","false");
@@ -1523,6 +1552,7 @@ function stopFilming(){
   filmTorchOn=false;
   $("#filmLayer").classList.add("hide");
   $("#filmLayer").setAttribute("aria-hidden","true");
+  closeFilmReader();
   setFilmFocus("script");
 }
 
@@ -1530,6 +1560,13 @@ $("#startFilmBtn").onclick=startFilming;
 // Tapping a pane that is currently the thumbnail makes it primary (stream keeps playing — only CSS changes).
 $("#filmCamera").addEventListener("click",()=>{ if(filmFocused!=="camera") setFilmFocus("camera"); });
 $("#filmScript").addEventListener("click",()=>{ if(filmFocused!=="script") setFilmFocus("script"); });
+// Tap a shot in the (primary) script pane to open its full-screen, scrollable script reader.
+$("#filmScriptScroll").addEventListener("click",(e)=>{
+  if(filmFocused!=="script") return;            // when script is the thumbnail, let the pane swap instead
+  const row=e.target.closest(".fs-shot"); if(!row) return;
+  const s=_filmShots[parseInt(row.dataset.i,10)]; if(s) openFilmReader(s);
+});
+$("#filmReaderBack").addEventListener("click",(e)=>{ e.stopPropagation(); closeFilmReader(); });
 $("#filmFlip").addEventListener("click",(e)=>{ e.stopPropagation(); flipCamera(); });
 $("#filmTorch").addEventListener("click",(e)=>{ e.stopPropagation(); toggleTorch(); });
 $("#filmStop").addEventListener("click",(e)=>{ e.stopPropagation(); stopFilming(); });
