@@ -81,8 +81,12 @@
   .shot.done .shot-swipe{background:linear-gradient(0deg,rgba(46,204,113,.06),rgba(46,204,113,.06)),var(--card)}
   .shot.swiped .shot-swipe{transform:translateX(-96px)}
   .shot-main{display:flex; align-items:flex-start; gap:10px; padding:11px 12px}
-  .num{position:relative; flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px; cursor:pointer}
+  .num{position:relative; flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px; cursor:grab; touch-action:none; -webkit-user-select:none; user-select:none}
   .num::after{content:""; position:absolute; inset:-10px}
+  .shot.dragging{box-shadow:0 14px 30px rgba(0,0,0,.55); transform:scale(1.03); transition:none}
+  .shot.dragging .shot-swipe{transition:none}
+  .shot.dragging .num{cursor:grabbing}
+  .shot-ph{border:1.5px dashed var(--accent); border-radius:var(--radius); background:rgba(204,119,26,.07); margin-bottom:8px; box-sizing:border-box}
   .box{position:relative; flex:0 0 auto; width:26px; height:26px; border-radius:8px; border:2px solid var(--line); background:var(--card2); display:flex; align-items:center; justify-content:center; margin-top:1px; transition:.15s; cursor:pointer}
   .box::after{content:""; position:absolute; inset:-9px}
   .shot.done .box{background:var(--done); border-color:var(--done)}
@@ -907,7 +911,7 @@ function renderSection(sec){
   wrap.innerHTML='<div class="sec-head"><div class="sec-title">'+esc(sec.name)+
     (sec.why?'<span class="why">'+esc(sec.why)+'</span>':'')+
     '</div><span class="sec-count">'+done+'/'+sec.shots.length+'</span></div>';
-  sec.shots.forEach(s=>wrap.appendChild(renderShot(s)));
+  sec.shots.forEach(s=>wrap.appendChild(renderShot(s, sec.shots)));
   return wrap;
 }
 function closeOtherSwipes(except){
@@ -917,7 +921,78 @@ function removeShot(shot){
   for(const sec of reel.sections){ const i=sec.shots.indexOf(shot); if(i>=0){ sec.shots.splice(i,1); save(); return; } }
   const j=reel.custom.indexOf(shot); if(j>=0){ reel.custom.splice(j,1); save(); }
 }
-function renderShot(s){
+
+// ============ Drag-to-reorder (within a section only) ============
+let dragState=null;
+function beginDrag(el, arr, pe){
+  if(dragState) return;
+  closeOtherSwipes(null);                       // starting a drag closes any open swipe
+  const section=el.parentNode;
+  const rect=el.getBoundingClientRect();
+  const ph=document.createElement("div");
+  ph.className="shot-ph"; ph.style.height=rect.height+"px";
+  section.insertBefore(ph, el);
+  el.classList.add("dragging");
+  el.style.width=rect.width+"px"; el.style.left=rect.left+"px"; el.style.top=rect.top+"px";
+  el.style.position="fixed"; el.style.margin="0"; el.style.zIndex="999";
+  document.body.style.userSelect="none";
+  dragState={ el, arr, section, ph, grabDY:pe.clientY-rect.top, lastY:pe.clientY, raf:0 };
+  try{ el.querySelector(".num").setPointerCapture(pe.pointerId); }catch(_){}
+  window.addEventListener("pointermove", onDragMove, {passive:false});
+  window.addEventListener("pointerup", onDragEnd);
+  window.addEventListener("pointercancel", onDragEnd);
+  positionPlaceholder(pe.clientY);
+  dragState.raf=requestAnimationFrame(autoScrollTick);
+}
+function onDragMove(e){
+  if(!dragState) return;
+  e.preventDefault();
+  dragState.lastY=e.clientY;
+  dragState.el.style.top=(e.clientY-dragState.grabDY)+"px";
+  positionPlaceholder(e.clientY);
+}
+function positionPlaceholder(clientY){
+  const {section, el, ph}=dragState;
+  const sibs=[...section.children].filter(c=>c.classList.contains("shot") && c!==el);
+  let target=null;
+  for(const sib of sibs){ const r=sib.getBoundingClientRect(); if(clientY < r.top + r.height/2){ target=sib; break; } }
+  if(target) section.insertBefore(ph, target); else section.appendChild(ph);  // clamps to last within this section
+}
+function autoScrollTick(){
+  if(!dragState) return;
+  const y=dragState.lastY, margin=72, vh=window.innerHeight;
+  let speed=0;
+  if(y<margin) speed=-Math.ceil((margin-y)/5);
+  else if(y>vh-margin) speed=Math.ceil((y-(vh-margin))/5);
+  if(speed){
+    const before=window.scrollY;
+    window.scrollBy(0, speed);
+    if(window.scrollY!==before){ dragState.el.style.top=(dragState.lastY-dragState.grabDY)+"px"; positionPlaceholder(dragState.lastY); }
+  }
+  dragState.raf=requestAnimationFrame(autoScrollTick);
+}
+function onDragEnd(){
+  if(!dragState) return;
+  const {el, arr, section, ph}=dragState;
+  cancelAnimationFrame(dragState.raf);
+  window.removeEventListener("pointermove", onDragMove);
+  window.removeEventListener("pointerup", onDragEnd);
+  window.removeEventListener("pointercancel", onDragEnd);
+  document.body.style.userSelect="";
+  const dragged=el._shot;
+  const order=[];
+  [...section.children].forEach(c=>{
+    if(c===ph) order.push(dragged);
+    else if(c.classList.contains("shot") && c!==el) order.push(c._shot);
+  });
+  if(!order.includes(dragged)) order.push(dragged);
+  arr.splice(0, arr.length, ...order);     // reorder in place (keeps the live array reference)
+  save();
+  dragState=null;
+  renderList();                            // re-render so global shot numbers update
+}
+
+function renderShot(s, arr){
   _shotNo++;
   const el=document.createElement("div"); el.className="shot"+(s.done?" done":"");
   el.innerHTML='<button class="shot-del" type="button">Delete</button>'+
@@ -938,10 +1013,27 @@ function renderShot(s){
   // A tap closes an open swipe instead of acting; otherwise runs fn. _suppress blocks the
   // click that fires at the end of a swipe gesture.
   function tap(fn){ return (e)=>{ e.stopPropagation(); if(el._suppress) return; if(el.classList.contains("swiped")){ el.classList.remove("swiped"); return; } fn(); }; }
+  el._shot=s;                                   // used by the reorder controller
   box.onclick=tap(toggleDone);
-  num.onclick=tap(toggleDone);
   body.onclick=tap(()=>openShotDialog(s));      // tap the name -> change shot type
   delBtn.onclick=(e)=>{ e.stopPropagation(); removeShot(s); renderList(); };
+
+  // Number circle = drag handle: press-and-hold ~250ms, then drag to reorder within the section.
+  let holdTimer=null, downId=null, dX=0, dY=0, lX=0, lY=0;
+  num.addEventListener("pointerdown",(e)=>{
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    e.stopPropagation();                        // keep the swipe gesture from also starting on the handle
+    downId=e.pointerId; dX=lX=e.clientX; dY=lY=e.clientY;
+    holdTimer=setTimeout(()=>{ holdTimer=null; beginDrag(el, arr, {clientX:lX, clientY:lY, pointerId:downId}); }, 250);
+  });
+  num.addEventListener("pointermove",(e)=>{
+    if(e.pointerId!==downId) return;
+    lX=e.clientX; lY=e.clientY;
+    if(holdTimer && (Math.abs(e.clientX-dX)>10 || Math.abs(e.clientY-dY)>10)){ clearTimeout(holdTimer); holdTimer=null; }  // moved before hold => not a drag
+  });
+  function cancelHold(){ if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; } }
+  num.addEventListener("pointerup", cancelHold);
+  num.addEventListener("pointercancel", cancelHold);
 
   // Swipe left to reveal Delete (pointer events => works on iPhone touch and desktop mouse).
   let startX=0,startY=0,drag=false,decided=false,horiz=false,curTx=0;
