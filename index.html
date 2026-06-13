@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-<!-- Studio27 Reel Checklist — VERSION 2026-06-12c "filming-camera + script reader + Stop button" (camera PiP; tap-a-shot script reader; persistent top-right Stop button; script/list text clears the camera thumbnail). Local rollback snapshots live in the /backups folder next to this file. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
@@ -15,7 +14,6 @@
     --bg:#201f1a; --card:#262521; --card2:#2c2b26; --line:#3a3830;
     --text:#f0f0f0; --muted:#9e9e9e; --accent:#cc771a; --accent-hi:#d27c1f; --accent2:#c9c9c9;
     --done:#2ecc71; --radius:14px;
-    --thumb-w:min(34vw,140px); --thumb-h:min(45vw,188px);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; padding:0}
@@ -145,80 +143,6 @@
   .dlg-note{font-size:14px;color:var(--muted);line-height:1.5;margin:4px 0 0}
   .dlg-note b{color:var(--text)}
   .hide{display:none !important}
-
-  /* ===== Filming (picture-in-picture camera) ===== */
-  .filmstart{width:100%; display:flex; align-items:center; justify-content:center; gap:9px; background:var(--card); border:1px solid var(--line); color:var(--text); border-radius:12px; padding:13px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:14px}
-  .filmstart:active{background:var(--card2)}
-  .filmstart .rec{width:11px; height:11px; border-radius:50%; background:#e2483a; box-shadow:0 0 0 3px rgba(226,72,58,.2)}
-
-  #filmLayer{position:fixed; inset:0; z-index:1000; background:#000; overflow:hidden}
-  .film-pane{position:absolute; overflow:hidden; background:var(--bg);
-    transition:top .35s cubic-bezier(.4,0,.2,1), left .35s cubic-bezier(.4,0,.2,1), width .35s cubic-bezier(.4,0,.2,1), height .35s cubic-bezier(.4,0,.2,1), border-radius .35s, box-shadow .35s, border-color .35s}
-  /* primary (full screen) */
-  #filmLayer.focus-script #filmScript,
-  #filmLayer.focus-camera #filmCamera{top:0; left:0; width:100%; height:100%; border-radius:0; z-index:1; box-shadow:none; border:0 solid transparent}
-  /* thumbnail (top-right, FaceTime-style, respects safe area; sits below the Stop button) */
-  #filmLayer.focus-script #filmCamera,
-  #filmLayer.focus-camera #filmScript{
-    top:calc(env(safe-area-inset-top) + 56px);
-    left:calc(100% - var(--thumb-w) - 12px - env(safe-area-inset-right));
-    width:var(--thumb-w); height:var(--thumb-h);
-    border-radius:16px; z-index:2; cursor:pointer;
-    box-shadow:0 10px 30px rgba(0,0,0,.55); border:2px solid rgba(255,255,255,.18)}
-  #filmVideo{width:100%; height:100%; object-fit:cover; background:#000; display:block}
-  #filmCamera.mirror #filmVideo{transform:scaleX(-1)}
-  /* Persistent Stop button — always visible top-right, one tap back to the app */
-  .film-exit{position:absolute; top:calc(env(safe-area-inset-top) + 12px); right:calc(env(safe-area-inset-right) + 12px); z-index:6;
-    background:var(--accent); color:#1a1205; border:none; border-radius:20px; padding:8px 15px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.45)}
-  .film-exit:active{background:var(--accent-hi)}
-  /* Invisible float that makes script/list text wrap to the LEFT of the camera thumbnail (no overlap) */
-  .film-thumb-clear{float:right; width:calc(var(--thumb-w) + 20px); height:calc(var(--thumb-h) + 46px); pointer-events:none}
-  #filmLayer.focus-camera .film-thumb-clear{display:none}
-
-  .film-scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain;
-    padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 24px)}
-  #filmLayer.focus-camera #filmScript .film-scroll{overflow:hidden}   /* thumbnail doesn't scroll */
-  .fs-title{font-size:20px; font-weight:800; margin:0 0 6px; color:var(--text)}
-  .fs-sub{font-size:12px; color:var(--muted); margin:0 0 16px}
-  .fs-sec{font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px; margin:20px 0 8px}
-  .fs-shot{margin-bottom:12px; padding:8px 8px 12px; border-bottom:1px solid var(--line); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:rgba(204,119,26,.12)}
-  .fs-shot:active{background:var(--card)}
-  .fs-shot.done .fs-label{text-decoration:line-through; color:var(--muted)}
-  .fs-line{display:flex; gap:10px; align-items:center}
-  .fs-n{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:var(--card2); border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center}
-  .fs-label{font-size:17px; font-weight:700; color:var(--text); flex:1; min-width:0}
-  .fs-chev{flex:0 0 auto; color:var(--muted); font-size:20px; line-height:1}
-  .fs-hint{font-size:13px; color:var(--muted); margin:5px 0 0 32px}
-  .fs-note{font-size:14px; color:var(--text); opacity:.85; margin:6px 0 0 32px}
-  .fs-script{font-size:16px; line-height:1.45; color:var(--text); margin:9px 0 0; padding:10px 12px; background:var(--card); border-left:3px solid var(--accent); border-radius:8px;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
-  .fs-readcue{font-size:12px; font-weight:700; color:var(--accent); margin:7px 0 0 32px}
-
-  /* Full-screen single-shot script reader (inside the script pane) */
-  .film-reader{position:absolute; inset:0; z-index:3; background:var(--bg)}
-  .film-reader-back{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:4; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:20px; padding:9px 15px; font-size:14px; font-weight:700; cursor:pointer}
-  .film-reader-scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain;
-    padding:calc(env(safe-area-inset-top) + 70px + var(--thumb-h)) 22px calc(env(safe-area-inset-bottom) + 36px)}
-  #filmLayer.focus-camera .film-reader-scroll{padding-top:14px}   /* thumbnail: no clearance needed */
-  .fr-kicker{font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px; margin:6px 0 4px}
-  .fr-title{font-size:22px; font-weight:800; color:var(--text); margin:0 0 12px}
-  .fr-hint{font-size:14px; color:var(--muted); margin:0 0 18px}
-  .fr-script{font-size:23px; line-height:1.65; color:var(--text); white-space:pre-wrap}
-  .fr-empty{font-size:16px; color:var(--muted); margin-top:16px}
-
-  .film-controls{position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 22px);
-    display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; padding:0 16px; z-index:3;
-    opacity:0; pointer-events:none; transition:opacity .25s}
-  #filmLayer.focus-camera .film-controls{opacity:1; pointer-events:auto}
-  .film-cbtn{background:rgba(0,0,0,.5); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:24px; padding:12px 18px; font-size:14px; font-weight:700; cursor:pointer; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
-  .film-cbtn.on{background:var(--accent); color:#1a1205; border-color:transparent}
-  .film-stop{background:var(--accent); color:#1a1205; border-color:transparent}
-  .film-zoom{display:flex; align-items:center; gap:8px; background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.25); border-radius:24px; padding:8px 14px; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
-  .film-zoom input{width:120px}
-  .film-hint{position:absolute; top:calc(env(safe-area-inset-top) + 16px); left:16px; z-index:3; font-size:12px; color:rgba(255,255,255,.7); background:rgba(0,0,0,.4); padding:6px 11px; border-radius:20px; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); pointer-events:none}
-  #filmLayer.focus-camera .film-hint{display:none}
-  .film-error{position:absolute; inset:0; z-index:6; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; padding:32px; background:var(--bg); color:var(--text)}
-  .film-error p{font-size:15px; line-height:1.55; max-width:340px; margin:0}
 </style>
 </head>
 <body>
@@ -261,7 +185,6 @@
   <div id="listView" class="hide">
     <input class="titlefield" id="titleField" placeholder="Name this reel (optional)">
     <div class="seqnote" id="seqNote"></div>
-    <button class="filmstart" id="startFilmBtn"><span class="rec"></span> Start Filming</button>
     <div id="sections"></div>
     <button class="addbtn" id="addShotBtn">+ Add a shot</button>
   </div>
@@ -275,31 +198,6 @@
     <button class="btn btn-ghost btn-sm" id="backBtn">‹ Home</button>
     <button class="btn btn-ghost" id="resetBtn">Clear checks</button>
     <button class="btn btn-primary" id="pdfBtn">Save PDF</button>
-  </div>
-</div>
-
-<!-- ===== Filming layer (camera PiP over the script/shot list) ===== -->
-<div id="filmLayer" class="hide focus-script" aria-hidden="true">
-  <div id="filmScript" class="film-pane">
-    <div class="film-scroll" id="filmScriptScroll"></div>
-    <div class="film-reader hide" id="filmReader">
-      <button class="film-reader-back" id="filmReaderBack" type="button">‹ Shot list</button>
-      <div class="film-reader-scroll" id="filmReaderScroll"></div>
-    </div>
-  </div>
-  <div id="filmCamera" class="film-pane">
-    <video id="filmVideo" playsinline muted autoplay></video>
-    <div class="film-hint">Tap the camera to swap</div>
-    <div class="film-controls" id="filmControls">
-      <button class="film-cbtn hide" id="filmFlip" type="button">⟲ Flip</button>
-      <button class="film-cbtn hide" id="filmTorch" type="button">Torch</button>
-      <div class="film-zoom hide" id="filmZoomWrap"><span style="font-size:13px;color:#fff">Zoom</span><input id="filmZoom" type="range"></div>
-    </div>
-  </div>
-  <button class="film-exit" id="filmStop" type="button">■ Stop</button>
-  <div class="film-error hide" id="filmError">
-    <p id="filmErrorMsg"></p>
-    <button class="film-cbtn film-stop" id="filmErrorClose" type="button">Close</button>
   </div>
 </div>
 
@@ -1454,137 +1352,6 @@ $("#pdfGo").onclick=()=>{ pdfDlg.close(); savePDF(); };
 // ============ Keep saved progress between visits ============
 // Home-screen web apps get persistent storage; ask iOS to honor it.
 (function(){ try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){} })();
-
-// ============ Filming: picture-in-picture camera over the script/shot list ============
-let filmStream=null, filmFacing="user", filmFocused="script", filmTorchOn=false;
-let _filmShots=[];   // flat, ordered list mirroring the rendered rows (for tap-to-read)
-
-function setFilmFocus(which){
-  filmFocused=which;
-  const l=$("#filmLayer");
-  l.classList.toggle("focus-script", which==="script");
-  l.classList.toggle("focus-camera", which==="camera");
-}
-function buildFilmScript(){
-  const groups=reel.sections.map(s=>({name:s.name,shots:s.shots})).filter(g=>g.shots.length);
-  if(reel.custom.length) groups.push({name:customHeading(), shots:reel.custom});
-  _filmShots=[]; let n=0;
-  let html='<div class="film-thumb-clear" aria-hidden="true"></div>';   // wraps text left of the camera thumbnail
-  html+='<div class="fs-title">'+esc(reel.title||REELS[reel.type].label+" Reel")+'</div>';
-  if(reel.seq && !REELS[reel.type].blank) html+='<div class="fs-sub">'+esc(reel.seq)+'</div>';
-  groups.forEach(g=>{
-    html+='<div class="fs-sec">'+esc(g.name)+'</div>';
-    g.shots.forEach(s=>{ const i=_filmShots.length; _filmShots.push(s); n++;
-      html+='<div class="fs-shot'+(s.done?' done':'')+'" data-i="'+i+'"><div class="fs-line"><span class="fs-n">'+n+'</span><span class="fs-label">'+esc(s.label)+'</span><span class="fs-chev">›</span></div>'+
-        (s.hint?'<div class="fs-hint">'+esc(s.hint)+'</div>':'')+
-        (s.note?'<div class="fs-note">'+esc(s.note)+'</div>':'')+
-        (s.script?'<div class="fs-script">'+esc(s.script)+'</div><div class="fs-readcue">Tap to read full script ›</div>':'')+'</div>';
-    });
-  });
-  if(!n) html+='<div class="fs-sub">No shots yet — add some to read them here while filming.</div>';
-  $("#filmScriptScroll").innerHTML=html;
-}
-function openFilmReader(s){
-  let html='<div class="fr-kicker">Script</div><div class="fr-title">'+esc(s.label)+'</div>';
-  if(s.hint) html+='<div class="fr-hint">'+esc(s.hint)+'</div>';
-  if(s.script) html+='<div class="fr-script">'+esc(s.script)+'</div>';
-  else html+='<div class="fr-empty">No script saved for this shot yet. You can add one from the shot list.</div>';
-  const sc=$("#filmReaderScroll"); sc.innerHTML=html; sc.scrollTop=0;
-  $("#filmReader").classList.remove("hide");
-}
-function closeFilmReader(){ $("#filmReader").classList.add("hide"); }
-function applyMirror(){ $("#filmCamera").classList.toggle("mirror", filmFacing==="user"); }
-function showFilmError(msg){ $("#filmErrorMsg").textContent=msg; $("#filmError").classList.remove("hide"); }
-
-async function setupCameraControls(){
-  // Flip: only if the device reports more than one camera.
-  let multi=false;
-  try{ const devs=await navigator.mediaDevices.enumerateDevices(); multi=devs.filter(d=>d.kind==="videoinput").length>1; }catch(_){}
-  $("#filmFlip").classList.toggle("hide", !multi);
-  // Torch / zoom: only what the active track actually reports.
-  const track=filmStream && filmStream.getVideoTracks()[0];
-  let caps={};
-  try{ caps = track && track.getCapabilities ? track.getCapabilities() : {}; }catch(_){}
-  $("#filmTorch").classList.toggle("hide", !caps.torch);
-  $("#filmTorch").classList.remove("on"); filmTorchOn=false;
-  const zw=$("#filmZoomWrap");
-  if(caps.zoom){
-    const z=$("#filmZoom"); z.min=caps.zoom.min; z.max=caps.zoom.max; z.step=caps.zoom.step||0.1;
-    let cur=caps.zoom.min; try{ cur=track.getSettings().zoom||caps.zoom.min; }catch(_){}
-    z.value=cur; zw.classList.remove("hide");
-  } else zw.classList.add("hide");
-}
-
-async function openCamera(){
-  const v=$("#filmVideo");
-  filmStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:filmFacing}, audio:false});
-  v.srcObject=filmStream; v.muted=true; v.playsInline=true;
-  try{ await v.play(); }catch(_){}
-  applyMirror();
-  await setupCameraControls();
-}
-async function startFilming(){
-  $("#filmError").classList.add("hide");
-  buildFilmScript();
-  closeFilmReader();
-  setFilmFocus("script");
-  $("#filmLayer").classList.remove("hide");
-  $("#filmLayer").setAttribute("aria-hidden","false");
-  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
-    showFilmError("Camera access needs a secure connection (HTTPS) or the installed app. It isn't available here."); return;
-  }
-  try{ await openCamera(); }
-  catch(err){
-    const n=err && err.name;
-    let msg;
-    if(n==="NotAllowedError"||n==="SecurityError") msg="Camera permission was denied. Allow camera access for this site/app, then tap Start Filming again.";
-    else if(n==="NotFoundError"||n==="DevicesNotFoundError"||n==="OverconstrainedError") msg="No camera was found on this device.";
-    else if(n==="NotReadableError") msg="The camera is in use by another app. Close it and try again.";
-    else msg="Couldn't start the camera"+(n?" ("+n+")":"")+".";
-    showFilmError(msg);
-  }
-}
-async function flipCamera(){
-  filmFacing = filmFacing==="user" ? "environment" : "user";
-  if(filmStream) filmStream.getTracks().forEach(t=>t.stop());
-  try{ await openCamera(); }
-  catch(err){ showFilmError("Couldn't switch camera ("+(err&&err.name||"error")+")."); }
-}
-async function toggleTorch(){
-  const track=filmStream && filmStream.getVideoTracks()[0]; if(!track) return;
-  filmTorchOn=!filmTorchOn;
-  try{ await track.applyConstraints({advanced:[{torch:filmTorchOn}]}); $("#filmTorch").classList.toggle("on", filmTorchOn); }
-  catch(_){ filmTorchOn=!filmTorchOn; }
-}
-function stopFilming(){
-  if(filmStream){ filmStream.getTracks().forEach(t=>t.stop()); filmStream=null; }
-  const v=$("#filmVideo"); if(v) v.srcObject=null;
-  filmTorchOn=false;
-  $("#filmLayer").classList.add("hide");
-  $("#filmLayer").setAttribute("aria-hidden","true");
-  closeFilmReader();
-  setFilmFocus("script");
-}
-
-$("#startFilmBtn").onclick=startFilming;
-// Tapping a pane that is currently the thumbnail makes it primary (stream keeps playing — only CSS changes).
-$("#filmCamera").addEventListener("click",()=>{ if(filmFocused!=="camera") setFilmFocus("camera"); });
-$("#filmScript").addEventListener("click",()=>{ if(filmFocused!=="script") setFilmFocus("script"); });
-// Tap a shot in the (primary) script pane to open its full-screen, scrollable script reader.
-$("#filmScriptScroll").addEventListener("click",(e)=>{
-  if(filmFocused!=="script") return;            // when script is the thumbnail, let the pane swap instead
-  const row=e.target.closest(".fs-shot"); if(!row) return;
-  const s=_filmShots[parseInt(row.dataset.i,10)]; if(s) openFilmReader(s);
-});
-$("#filmReaderBack").addEventListener("click",(e)=>{ e.stopPropagation(); closeFilmReader(); });
-$("#filmFlip").addEventListener("click",(e)=>{ e.stopPropagation(); flipCamera(); });
-$("#filmTorch").addEventListener("click",(e)=>{ e.stopPropagation(); toggleTorch(); });
-$("#filmStop").addEventListener("click",(e)=>{ e.stopPropagation(); stopFilming(); });
-$("#filmErrorClose").addEventListener("click",(e)=>{ e.stopPropagation(); stopFilming(); });
-$("#filmZoom").addEventListener("input", async (e)=>{
-  const track=filmStream && filmStream.getVideoTracks()[0]; if(!track) return;
-  try{ await track.applyConstraints({advanced:[{zoom:parseFloat(e.target.value)}]}); }catch(_){}
-});
 
 // ============ Boot ============
 $("#brandLogo").src = LOGO_URI;
