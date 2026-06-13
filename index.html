@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<!-- Studio27 Reel Checklist — VERSION 2026-06-12b "filming-camera + script reader" (front/back camera PiP; tap a shot while filming to open a full-screen, scrollable script reader). Local rollback snapshots live in the /backups folder next to this file. -->
+<!-- Studio27 Reel Checklist — VERSION 2026-06-12c "filming-camera + script reader + Stop button" (camera PiP; tap-a-shot script reader; persistent top-right Stop button; script/list text clears the camera thumbnail). Local rollback snapshots live in the /backups folder next to this file. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
@@ -157,16 +157,23 @@
   /* primary (full screen) */
   #filmLayer.focus-script #filmScript,
   #filmLayer.focus-camera #filmCamera{top:0; left:0; width:100%; height:100%; border-radius:0; z-index:1; box-shadow:none; border:0 solid transparent}
-  /* thumbnail (top-right, FaceTime-style, respects safe area) */
+  /* thumbnail (top-right, FaceTime-style, respects safe area; sits below the Stop button) */
   #filmLayer.focus-script #filmCamera,
   #filmLayer.focus-camera #filmScript{
-    top:calc(env(safe-area-inset-top) + 12px);
+    top:calc(env(safe-area-inset-top) + 56px);
     left:calc(100% - var(--thumb-w) - 12px - env(safe-area-inset-right));
     width:var(--thumb-w); height:var(--thumb-h);
     border-radius:16px; z-index:2; cursor:pointer;
     box-shadow:0 10px 30px rgba(0,0,0,.55); border:2px solid rgba(255,255,255,.18)}
   #filmVideo{width:100%; height:100%; object-fit:cover; background:#000; display:block}
   #filmCamera.mirror #filmVideo{transform:scaleX(-1)}
+  /* Persistent Stop button — always visible top-right, one tap back to the app */
+  .film-exit{position:absolute; top:calc(env(safe-area-inset-top) + 12px); right:calc(env(safe-area-inset-right) + 12px); z-index:6;
+    background:var(--accent); color:#1a1205; border:none; border-radius:20px; padding:8px 15px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  .film-exit:active{background:var(--accent-hi)}
+  /* Invisible float that makes script/list text wrap to the LEFT of the camera thumbnail (no overlap) */
+  .film-thumb-clear{float:right; width:calc(var(--thumb-w) + 20px); height:calc(var(--thumb-h) + 46px); pointer-events:none}
+  #filmLayer.focus-camera .film-thumb-clear{display:none}
 
   .film-scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain;
     padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 24px)}
@@ -188,9 +195,11 @@
   .fs-readcue{font-size:12px; font-weight:700; color:var(--accent); margin:7px 0 0 32px}
 
   /* Full-screen single-shot script reader (inside the script pane) */
-  .film-reader{position:absolute; inset:0; z-index:3; background:var(--bg); display:flex; flex-direction:column}
-  .film-reader-back{flex:0 0 auto; align-self:flex-start; margin:calc(env(safe-area-inset-top) + 14px) 0 6px 14px; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:20px; padding:9px 15px; font-size:14px; font-weight:700; cursor:pointer}
-  .film-reader-scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain; padding:8px 22px calc(env(safe-area-inset-bottom) + 36px)}
+  .film-reader{position:absolute; inset:0; z-index:3; background:var(--bg)}
+  .film-reader-back{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:4; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:20px; padding:9px 15px; font-size:14px; font-weight:700; cursor:pointer}
+  .film-reader-scroll{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; overscroll-behavior:contain;
+    padding:calc(env(safe-area-inset-top) + 70px + var(--thumb-h)) 22px calc(env(safe-area-inset-bottom) + 36px)}
+  #filmLayer.focus-camera .film-reader-scroll{padding-top:14px}   /* thumbnail: no clearance needed */
   .fr-kicker{font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px; margin:6px 0 4px}
   .fr-title{font-size:22px; font-weight:800; color:var(--text); margin:0 0 12px}
   .fr-hint{font-size:14px; color:var(--muted); margin:0 0 18px}
@@ -285,9 +294,9 @@
       <button class="film-cbtn hide" id="filmFlip" type="button">⟲ Flip</button>
       <button class="film-cbtn hide" id="filmTorch" type="button">Torch</button>
       <div class="film-zoom hide" id="filmZoomWrap"><span style="font-size:13px;color:#fff">Zoom</span><input id="filmZoom" type="range"></div>
-      <button class="film-cbtn film-stop" id="filmStop" type="button">■ Stop filming</button>
     </div>
   </div>
+  <button class="film-exit" id="filmStop" type="button">■ Stop</button>
   <div class="film-error hide" id="filmError">
     <p id="filmErrorMsg"></p>
     <button class="film-cbtn film-stop" id="filmErrorClose" type="button">Close</button>
@@ -1460,7 +1469,8 @@ function buildFilmScript(){
   const groups=reel.sections.map(s=>({name:s.name,shots:s.shots})).filter(g=>g.shots.length);
   if(reel.custom.length) groups.push({name:customHeading(), shots:reel.custom});
   _filmShots=[]; let n=0;
-  let html='<div class="fs-title">'+esc(reel.title||REELS[reel.type].label+" Reel")+'</div>';
+  let html='<div class="film-thumb-clear" aria-hidden="true"></div>';   // wraps text left of the camera thumbnail
+  html+='<div class="fs-title">'+esc(reel.title||REELS[reel.type].label+" Reel")+'</div>';
   if(reel.seq && !REELS[reel.type].blank) html+='<div class="fs-sub">'+esc(reel.seq)+'</div>';
   groups.forEach(g=>{
     html+='<div class="fs-sec">'+esc(g.name)+'</div>';
